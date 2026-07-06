@@ -9,9 +9,11 @@ final class SelectionMonitor {
     private var eventMonitor: Any?
     private var debounceWorkItem: DispatchWorkItem?
     private var lastSelectedText: String?
+    private var mouseDownLocation: NSPoint?
     private let minTextLength = 2
     private let maxTextLength = 5000
-    private let debounceInterval: TimeInterval = 0.4
+    private let minDragDistance: CGFloat = 5.0
+    private let debounceInterval: TimeInterval = 0.6
 
     private init() {}
 
@@ -20,10 +22,17 @@ final class SelectionMonitor {
     func start() {
         guard eventMonitor == nil else { return }
 
-        let mask: NSEvent.EventTypeMask = .leftMouseUp
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .leftMouseUp]
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] event in
             Task { @MainActor [weak self] in
-                self?.handleMouseUp()
+                switch event.type {
+                case .leftMouseDown:
+                    self?.mouseDownLocation = NSEvent.mouseLocation
+                case .leftMouseUp:
+                    self?.handleMouseUp()
+                default:
+                    break
+                }
             }
         }
     }
@@ -41,6 +50,26 @@ final class SelectionMonitor {
 
     private func handleMouseUp() {
         guard isEnabled else { return }
+
+        // Never start detection while our own UI is visible
+        guard !TranslationButton.shared.isVisible,
+              !TranslationPopup.shared.isVisible else {
+            mouseDownLocation = nil
+            return
+        }
+
+        // Require actual drag movement — ignore plain clicks
+        if let down = mouseDownLocation {
+            let up = NSEvent.mouseLocation
+            let dx = up.x - down.x
+            let dy = up.y - down.y
+            let distance = hypot(dx, dy)
+            guard distance >= minDragDistance else {
+                mouseDownLocation = nil
+                return
+            }
+        }
+        mouseDownLocation = nil
 
         debounceWorkItem?.cancel()
 
@@ -81,6 +110,12 @@ final class SelectionMonitor {
         TranslationButton.shared.show { [weak self] in
             self?.translate(text: trimmed)
         }
+    }
+
+    // MARK: - Last Selection Reset
+
+    func clearLastSelectedText() {
+        lastSelectedText = nil
     }
 
     // MARK: - Translation

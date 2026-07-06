@@ -10,6 +10,8 @@ final class TranslationPopup {
     private var globalDismissMonitor: Any?
     private var localDismissMonitor: Any?
 
+    var isVisible: Bool { panel != nil }
+
     private init() {}
 
     // MARK: - Show (loading state)
@@ -149,6 +151,7 @@ final class TranslationPopup {
         panel?.close()
         panel = nil
         hostingController = nil
+        SelectionMonitor.shared.clearLastSelectedText()
     }
 
     // MARK: - Dismiss Monitors
@@ -171,7 +174,7 @@ final class TranslationPopup {
                 let clickLocation = NSEvent.mouseLocation
                 if !NSPointInRect(clickLocation, panel.frame) {
                     self.dismiss()
-                    return nil
+                    return event
                 }
             }
 

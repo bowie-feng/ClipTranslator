@@ -13,6 +13,8 @@ final class TranslationButton {
 
     private var onTrigger: (() -> Void)?
 
+    var isVisible: Bool { panel != nil }
+
     private init() {}
 
     // MARK: - Show
@@ -103,6 +105,7 @@ final class TranslationButton {
         panel = nil
         hostingController = nil
         onTrigger = nil
+        SelectionMonitor.shared.clearLastSelectedText()
     }
 
     // MARK: - Private
@@ -137,7 +140,7 @@ final class TranslationButton {
                 let expandedFrame = panel.frame.insetBy(dx: -8, dy: -8)
                 if !NSPointInRect(clickLocation, expandedFrame) {
                     self.dismiss()
-                    return nil
+                    return event
                 }
             }
 

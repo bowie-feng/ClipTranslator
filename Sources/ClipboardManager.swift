@@ -10,10 +10,12 @@ final class ClipboardManager {
     struct ClipboardSnapshot {
         let items: [NSPasteboardItem]
         let changeCount: Int
+        let explicitString: String?
     }
 
     func save() -> ClipboardSnapshot {
         let pb = NSPasteboard.general
+        let explicitString = pb.string(forType: .string)
         let items = (pb.pasteboardItems ?? []).map { item in
             let copy = NSPasteboardItem()
             for type in item.types {
@@ -23,7 +25,7 @@ final class ClipboardManager {
             }
             return copy
         }
-        return ClipboardSnapshot(items: items, changeCount: pb.changeCount)
+        return ClipboardSnapshot(items: items, changeCount: pb.changeCount, explicitString: explicitString)
     }
 
     func restore(_ snapshot: ClipboardSnapshot) {
@@ -31,6 +33,10 @@ final class ClipboardManager {
         pb.clearContents()
         if !snapshot.items.isEmpty {
             pb.writeObjects(snapshot.items)
+        }
+        // Restore string representation if items didn't carry it themselves
+        if let string = snapshot.explicitString, pb.string(forType: .string) == nil {
+            pb.setString(string, forType: .string)
         }
     }
 
