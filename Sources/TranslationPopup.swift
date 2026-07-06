@@ -90,7 +90,7 @@ final class TranslationPopup {
 
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 360, height: 250),
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless, .nonactivatingPanel, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -101,6 +101,9 @@ final class TranslationPopup {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.animationBehavior = .utilityWindow
+        panel.isMovableByWindowBackground = true
+        panel.contentMinSize = NSSize(width: 280, height: 180)
+        panel.contentMaxSize = NSSize(width: 600, height: 800)
         panel.contentViewController = hosting
 
         // Position near mouse cursor

@@ -14,8 +14,13 @@ struct PopupContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack {
+            // Header with drag handle
+            HStack(spacing: 6) {
+                // Drag handle indicator
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(Color.primary.opacity(0.15))
+                    .frame(width: 20, height: 3)
+
                 // Language direction badge
                 Text(languageLabel)
                     .font(.system(size: 10, weight: .medium))
@@ -89,16 +94,13 @@ struct PopupContentView: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
                 }
-                .frame(maxHeight: 250)
             }
 
             Divider()
                 .opacity(0.3)
 
-            // Footer with copy button
+            // Footer with copy button + resize grip
             HStack {
-                Spacer()
-
                 if !isLoading {
                     Button(action: {
                         onCopy()
@@ -123,11 +125,18 @@ struct PopupContentView: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                Spacer()
+
+                // Resize grip
+                Image(systemName: "arrow.up.backward.and.arrow.down.forward")
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary.opacity(0.5))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
         }
-        .frame(width: 360)
+        .frame(minWidth: 280, idealWidth: 360, maxWidth: 600, minHeight: 180)
         .background(
             VisualEffectView(material: .popover, blendingMode: .behindWindow)
         )
