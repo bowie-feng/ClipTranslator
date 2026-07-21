@@ -296,7 +296,7 @@ struct AboutTab: View {
                 .font(.title)
                 .fontWeight(.bold)
 
-            Text("版本 1.2.0")
+            Text("版本 1.3.0")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 

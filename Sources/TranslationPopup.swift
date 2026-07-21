@@ -9,6 +9,12 @@ final class TranslationPopup {
     private var hostingController: NSHostingController<PopupContentView>?
     private var globalDismissMonitor: Any?
     private var localDismissMonitor: Any?
+    private var currentOriginalText: String?
+    private var onRetranslate: ((String, String) -> Void)?
+    private var onToggleMode: (() -> Void)?
+    private var isDictionaryMode = false
+
+    private let maxPanelHeight: CGFloat = 600
 
     var isVisible: Bool { panel != nil }
 
@@ -16,8 +22,20 @@ final class TranslationPopup {
 
     // MARK: - Show (loading state)
 
-    func showLoading(originalText: String, sourceLanguage: String, targetLanguage: String) {
+    func showLoading(
+        originalText: String,
+        sourceLanguage: String,
+        targetLanguage: String,
+        isDictionaryMode: Bool = false,
+        onRetranslate: @escaping (String, String) -> Void,
+        onToggleMode: (() -> Void)? = nil
+    ) {
         dismiss()
+
+        currentOriginalText = originalText
+        self.onRetranslate = onRetranslate
+        self.onToggleMode = onToggleMode
+        self.isDictionaryMode = isDictionaryMode
 
         let contentView = PopupContentView(
             originalText: originalText,
@@ -26,12 +44,17 @@ final class TranslationPopup {
             targetLanguage: targetLanguage,
             isLoading: true,
             isError: false,
+            isDictionaryMode: isDictionaryMode,
             onCopy: { [weak self] in
                 self?.copyToClipboard("")
             },
             onDismiss: { [weak self] in
                 self?.dismiss()
-            }
+            },
+            onLanguageChange: { [weak self] newLanguage in
+                self?.handleLanguageChange(newLanguage)
+            },
+            onToggleMode: onToggleMode
         )
 
         present(contentView: contentView)
@@ -44,8 +67,11 @@ final class TranslationPopup {
         translatedText: String,
         sourceLanguage: String,
         targetLanguage: String,
-        isError: Bool
+        isError: Bool,
+        isDictionaryMode: Bool = false
     ) {
+        currentOriginalText = originalText
+
         // If panel already exists, update it in-place
         if panel != nil, let hosting = hostingController {
             let contentView = PopupContentView(
@@ -55,14 +81,20 @@ final class TranslationPopup {
                 targetLanguage: targetLanguage,
                 isLoading: false,
                 isError: isError,
+                isDictionaryMode: isDictionaryMode,
                 onCopy: { [weak self] in
                     self?.copyToClipboard(translatedText)
                 },
                 onDismiss: { [weak self] in
                     self?.dismiss()
-                }
+                },
+                onLanguageChange: { [weak self] newLanguage in
+                    self?.handleLanguageChange(newLanguage)
+                },
+                onToggleMode: onToggleMode
             )
             hosting.rootView = contentView
+            resizeToFit()
             return
         }
 
@@ -74,12 +106,17 @@ final class TranslationPopup {
             targetLanguage: targetLanguage,
             isLoading: false,
             isError: isError,
+            isDictionaryMode: isDictionaryMode,
             onCopy: { [weak self] in
                 self?.copyToClipboard(translatedText)
             },
             onDismiss: { [weak self] in
                 self?.dismiss()
-            }
+            },
+            onLanguageChange: { [weak self] newLanguage in
+                self?.handleLanguageChange(newLanguage)
+            },
+            onToggleMode: onToggleMode
         )
 
         present(contentView: contentView)
@@ -105,7 +142,7 @@ final class TranslationPopup {
         panel.animationBehavior = .utilityWindow
         panel.isMovableByWindowBackground = true
         panel.contentMinSize = NSSize(width: 280, height: 180)
-        panel.contentMaxSize = NSSize(width: 600, height: 800)
+        panel.contentMaxSize = NSSize(width: 600, height: maxPanelHeight)
         panel.contentViewController = hosting
 
         // Position near mouse cursor
@@ -114,7 +151,8 @@ final class TranslationPopup {
         let visibleFrame = screen.visibleFrame
 
         let panelWidth: CGFloat = 360
-        let panelHeight: CGFloat = min(300, hosting.view.fittingSize.height + 20)
+        // Use a reasonable initial height; resizeToFit will adjust after layout
+        let panelHeight: CGFloat = 250
         var origin = NSPoint(
             x: mouseLocation.x + 16,
             y: mouseLocation.y - 16 - panelHeight
@@ -142,6 +180,45 @@ final class TranslationPopup {
 
         self.panel = panel
         self.hostingController = hosting
+
+        // Let SwiftUI layout, then resize to fit content
+        resizeToFit()
+    }
+
+    // MARK: - Resize
+
+    private func resizeToFit() {
+        guard let panel = panel, let hosting = hostingController else { return }
+
+        hosting.view.layoutSubtreeIfNeeded()
+        let fitting = hosting.view.fittingSize
+        let padding: CGFloat = 4
+        let newHeight = min(fitting.height + padding, maxPanelHeight)
+        let newWidth = max(panel.frame.width, fitting.width + padding)
+
+        var newFrame = panel.frame
+        let heightDelta = newHeight - newFrame.height
+
+        newFrame.size = NSSize(width: newWidth, height: newHeight)
+        newFrame.origin.y -= heightDelta // expand upward
+
+        // Clamp to screen bounds
+        if let screen = panel.screen {
+            let visible = screen.visibleFrame
+            if newFrame.maxX > visible.maxX { newFrame.origin.x = visible.maxX - newFrame.width - 8 }
+            if newFrame.minY < visible.minY { newFrame.origin.y = visible.minY + 8 }
+            if newFrame.minX < visible.minX { newFrame.origin.x = visible.minX + 8 }
+            if newFrame.maxY > visible.maxY { newFrame.origin.y = visible.maxY - newFrame.height - 8 }
+        }
+
+        panel.setFrame(newFrame, display: true, animate: true)
+    }
+
+    // MARK: - Language Change
+
+    private func handleLanguageChange(_ newLanguage: String) {
+        guard let originalText = currentOriginalText else { return }
+        onRetranslate?(originalText, newLanguage)
     }
 
     // MARK: - Dismiss
@@ -151,6 +228,10 @@ final class TranslationPopup {
         panel?.close()
         panel = nil
         hostingController = nil
+        currentOriginalText = nil
+        onRetranslate = nil
+        onToggleMode = nil
+        isDictionaryMode = false
         SelectionMonitor.shared.clearLastSelectedText()
     }
 

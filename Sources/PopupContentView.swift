@@ -7,10 +7,26 @@ struct PopupContentView: View {
     let targetLanguage: String
     let isLoading: Bool
     let isError: Bool
+    let isDictionaryMode: Bool
     let onCopy: () -> Void
     let onDismiss: () -> Void
+    let onLanguageChange: ((String) -> Void)?
+    let onToggleMode: (() -> Void)?
 
     @State private var isCopied = false
+
+    private static let quickTargetLanguages: [(code: String, name: String)] = [
+        ("Simplified Chinese", "简体中文"),
+        ("English", "English"),
+        ("Japanese", "日本語"),
+        ("Korean", "한국어"),
+        ("French", "Français"),
+        ("German", "Deutsch"),
+        ("Spanish", "Español"),
+        ("Portuguese", "Português"),
+        ("Russian", "Русский"),
+        ("Arabic", "العربية"),
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -21,21 +37,78 @@ struct PopupContentView: View {
                     .fill(Color.primary.opacity(0.15))
                     .frame(width: 20, height: 3)
 
-                // Language direction badge
-                Text(languageLabel)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.secondary)
+                if isDictionaryMode {
+                    // Dictionary mode badge
+                    Text("📖 查词")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.accentColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.accentColor.opacity(0.1))
+                        )
+                } else {
+                    // Language direction badge with target-language picker
+                    HStack(spacing: 2) {
+                        Text("\(languageDisplayName(sourceLanguage)) → ")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.secondary)
+
+                        if let onLanguageChange = onLanguageChange {
+                            Menu {
+                                ForEach(Self.quickTargetLanguages, id: \.code) { lang in
+                                    Button(lang.name) {
+                                        onLanguageChange(lang.code)
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 2) {
+                                    Text(languageDisplayName(targetLanguage))
+                                        .font(.system(size: 10, weight: .medium))
+                                    Image(systemName: "chevron.down")
+                                        .font(.system(size: 6, weight: .bold))
+                                }
+                                .foregroundColor(.accentColor)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .buttonStyle(.plain)
+                            .fixedSize()
+                        } else {
+                            Text(languageDisplayName(targetLanguage))
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+                    }
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(
                         RoundedRectangle(cornerRadius: 4)
                             .fill(Color.primary.opacity(0.08))
                     )
+                }
 
                 Spacer()
 
-                // Character count (when not loading)
-                if !isLoading {
+                // Toggle mode button (only for single words)
+                if let onToggleMode = onToggleMode, !isLoading {
+                    Button(action: onToggleMode) {
+                        Text(isDictionaryMode ? "翻译" : "查词")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.accentColor)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(Color.accentColor.opacity(0.4), lineWidth: 0.5)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help(isDictionaryMode ? "切换到翻译模式" : "切换到查词模式")
+                }
+
+                // Character count (when not loading, translation mode only)
+                if !isLoading && !isDictionaryMode {
                     Text("\(translatedText.count) 字")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
@@ -57,22 +130,37 @@ struct PopupContentView: View {
             Divider()
                 .opacity(0.3)
 
-            // Original text (truncated)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("原文")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(.secondary)
+            // Original text (truncated) — only in translation mode
+            if !isDictionaryMode {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("原文")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.secondary)
 
-                Text(truncatedOriginal)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
+                    Text(truncatedOriginal)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+
+                Divider()
+                    .opacity(0.3)
+            } else if !isLoading && !isError {
+                // Dictionary mode: show the word prominently
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(originalText)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 14)
+                        .padding(.top, 10)
+                        .padding(.bottom, 4)
+                }
+
+                Divider()
+                    .opacity(0.3)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-
-            Divider()
-                .opacity(0.3)
 
             // Content area: loading spinner or translated text
             if isLoading {
@@ -146,15 +234,6 @@ struct PopupContentView: View {
             onDismiss()
             return .handled
         }
-    }
-
-    private var languageLabel: String {
-        let srcName = languageDisplayName(sourceLanguage)
-        let tgtName = languageDisplayName(targetLanguage)
-        if sourceLanguage == "auto" || sourceLanguage.isEmpty {
-            return "→ \(tgtName)"
-        }
-        return "\(srcName) → \(tgtName)"
     }
 
     private var truncatedOriginal: String {

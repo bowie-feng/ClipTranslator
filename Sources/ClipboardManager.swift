@@ -44,7 +44,8 @@ final class ClipboardManager {
 
     /// Simulates Cmd+C and returns whatever text landed on the pasteboard.
     /// Returns nil if the pasteboard didn't change (nothing was selected).
-    func simulateCopyAndRead(delayMilliseconds: Int = 50) -> String? {
+    /// Uses async suspension (Task.sleep) instead of blocking the main run loop.
+    func simulateCopyAndRead(delayMilliseconds: Int = 50) async -> String? {
         let pb = NSPasteboard.general
         let beforeChangeCount = pb.changeCount
 
@@ -60,8 +61,8 @@ final class ClipboardManager {
         keyDown?.post(tap: .cghidEventTap)
         keyUp?.post(tap: .cghidEventTap)
 
-        // Let the run loop process the Cmd+C event we just posted
-        RunLoop.current.run(until: Date(timeIntervalSinceNow: Double(delayMilliseconds) / 1000.0))
+        // Yield to the system so the frontmost app can process Cmd+C
+        try? await Task.sleep(nanoseconds: UInt64(delayMilliseconds) * 1_000_000)
 
         // Check if pasteboard actually changed (confirms something was selected)
         guard pb.changeCount != beforeChangeCount else {

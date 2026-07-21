@@ -57,18 +57,28 @@ final class KeychainManager: @unchecked Sendable {
 
     // MARK: - In-Memory Cache
 
+    private let cacheLock = NSLock()
     private var cachedKeys: [TranslationProvider: String] = [:]
 
     func getCachedAPIKey(for provider: TranslationProvider) throws -> String {
+        cacheLock.lock()
         if let cached = cachedKeys[provider] {
+            cacheLock.unlock()
             return cached
         }
+        cacheLock.unlock()
+
         let key = try getAPIKey(for: provider)
+
+        cacheLock.lock()
         cachedKeys[provider] = key
+        cacheLock.unlock()
         return key
     }
 
     func invalidateCache(for provider: TranslationProvider) {
+        cacheLock.lock()
         cachedKeys[provider] = nil
+        cacheLock.unlock()
     }
 }
